@@ -1,0 +1,7 @@
+Copy these files into the root of the kkianamm/medtsllm5 repository, preserving paths.
+The only existing file replaced is datasets/ptbxl.py.
+
+Alternative: apply the companion patch from the repository root:
+  git apply medtsllm5_pulse_description.patch
+
+Read docs/PULSE_INTEGRATION.md before running the pipeline.
