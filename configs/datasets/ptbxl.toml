@@ -1,0 +1,94 @@
+DEBUG = false
+
+task = "classification"
+model = "medtsllm"
+
+# Paper (Table III): Class.-PTB-XL  history=512  patch=32  stride=16
+history_len = 512
+pred_len = 512
+
+
+[data]
+dataset = "PTB-XL"
+mode = "multivariate"
+cols = "all"
+normalize = true
+step = 512
+
+
+[training]
+epochs = 20
+batch_size = 16
+optimizer = "adam"
+learning_rate = 1e-4
+dropout = 0.1
+loss = "ce"
+
+eval_metric = "accuracy"
+eval_metric_direction = "max"
+
+
+[datasets.PTB-XL]
+version = "v1"
+
+
+[models.medtsllm]
+d_model = 32
+d_ff = 128
+n_heads = 8
+num_tokens = 1024
+# concatenation preserves inter-lead relationships (good for 12-lead ECG).
+covariate_mode = "concat"
+embedding_downsample_mode = "linear"
+
+[models.medtsllm.patching]
+patch_len = 32
+stride = 16
+
+[models.medtsllm.prompting]
+input_stats_dim = 0
+input_stats_select = "all"
+dataset = true
+task = true
+clip = true          # patient-specific info (age/sex as JSON) -- the paper's biggest single gain
+input_stats = false
+examples = false     # required: build_prompt() reads cfg.examples directly
+
+# --- Legacy text-injection of class descriptions (does NOT reproduce
+# BiomedCoOp; ablation only). Off by default. ---
+class_prompts = false
+class_prompts_path = ""
+class_prompts_per_class = 3
+class_prompts_sample = true
+class_codes = ["NORM", "MI", "STTC", "CD", "HYP"]
+
+# --- BiomedCoOp prototype head (faithful mechanism) ---
+# Identical to the decoder-only setup. With an encoder-decoder backbone the
+# class-description prototypes are built from the FLAN-T5 *encoder*; the
+# time-series sample embedding comes from the T5 decoder output. The learnable
+# projection in the head aligns the two spaces; SPS + KDSP are unchanged.
+[models.medtsllm.biomedcoop]
+enabled = true
+class_prompts_path = ""        # "" -> built-in ECG templates; or a JSON file
+n_prompts = 16                 # descriptions per class used to build prototypes
+pool = "mean"                  # token pooling: "mean" (recommended for T5) | "last"
+tau = 2.0                      # SPS outlier threshold (robust z-score)
+kdsp_lambda = 1.0              # weight of the KDSP distillation loss
+sccm_lambda = 0.0              # SCCM (needs learnable text prompt); 0 = off
+
+[models.medtsllm.llm]
+enabled = true
+# decoder-only: meta-llama/Llama-2-7b-hf
+# encoder-decoder (best for classification in the paper): google/flan-t5-xl
+llm = "google/flan-t5-xl"
+load_in_4bit = false
+load_in_8bit = false
+llm_layers = -1
+
+
+[setup]
+seed = 0
+device = "auto"
+dtype = "mixed"
+num_workers = "auto"
+logger = "print"
